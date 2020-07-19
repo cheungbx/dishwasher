@@ -1,31 +1,74 @@
 
-// ESP8266 disk washer using i2C OLED for display. 
+/*
+ disk washer v2.0
+ 2020 07 19 
+ Author: Billy Cheung
+ 
+ 
+ 
+ Function:  This is a  disk washer controller program.
+            This utilize a ESP8266 WeMos D1 mini 
+            an SSD1306 I2C OLED for display,  
+            a water temperature sensor  to control whether to turn on the heater to haat up the water to the required temperature for washing.
+            a water level sensor to detect high and low waater level and whether all water have been drained.
+            Uses only one single buitton to drive a menu.
+            Short press to cycle through the options in each menu.
+            Long press to select the option.
+            
+            The disk washer function includes the followin wash programs :
+            Normal - normal wash cycle with hot water an detergene and dry.
+            Long - adds more wash cycle to normal program
+            Fast - shortened wash cycle
+            Fruit - cold water spray only, no detergene.
+            Spray - hot  water spray,
+            Cold - wash using cold water, detergene.
+            Wash Test - accelerated wash cycle to test the program (i.e. 1 minute becomes 1 second).
+            I/O Test - display values of all sensors while turning  each output relay  on for 1 second and off for 1 second.
 
-// single button to drive the menu.
-// all 
+            You can long press to abort a pogram any time.
+            The OLED will go to sleep mode if not pressed for a  long time.
+            Short press again to wake it up.            
+
+            Due to the limitation of number of pins on the ESP8266 and to avoid adding anohter I2C expandoer e.g. MCP 23017,
+            there are no buzzer to signal that a wash program has finished.
+            
+            Future  options to web-based menu to this program as ESP8266 can support WIFI.
+            Then the washer can be controlled by the web front end.
+
+    
+ Output:  The output is connected to a 5V 4 way relay modul to drive the 
+
+          drainPump GPIO16  // D0 - to drain exhuast water out of the washer. The program reads the low water level sensor and stop draining when water level falls below the low water level mark.
+          washPump GPIO2 // D4 - control the strong water pump (80 watt or higher) that drives a garden sprayer to produce a rotating all angel spray to wash darts off the surfaces of dishes.
+          inlet GPIO0 // D3 - control the water inlet to let water in from the hose to fill water up to the required water level. The program checks the water sensor to close the inlet when the high water level mark is eached.
+          heater GPIO15 // D8 - contorl the under water heater that heats up the water to the required temperature. The program checks the water temperature sensor to turn the heater on or off.
+          SSD 1306 - (SCL/GPIO 5/D1,  SDA/GPIO 4/D2) - display messages and menu
+          
+ 
+ Input:   
+          1. buttonPin - A0 - connect th eother end of the button to 3.3V 
+          2. TemperaturePin 12 //D6 - connects to the water temperature sensor
+          3. lowWaterSensorPin 13 // D7 - connects to a wire imersed into water to mark the low water level. Connect another wire from the bottom of the tank to Ground.
+          4. highWaterSensorPin 14 // D5 - connects to a wire imersed into water to mark the low water level. Connect another wire from the bottom of the tank to Ground.
+
+ 
+*/
 
 
 
 // for i2c OLED 128 x 64
 
 #include <Wire.h>
-#include <Adafruit_GFX.h>  // Include core graphics library for the display
-#include <Adafruit_SSD1306.h>  // Include Adafruit_SSD1306 library to drive the display
+#include "SSD1306Wire.h" 
+#include "OLEDDisplayUi.h"
 
-Adafruit_SSD1306 display;  // Create display
+SSD1306Wire  display(0x3c, 4, 5);  // OLED's I2c device address, sda pin, scl pin
 
-#include <Fonts/FreeMonoBold12pt7b.h>  // Add a custom font
-#include <Fonts/FreeMono9pt7b.h>  // Add a custom font
+OLEDDisplayUi ui ( &display );
+
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
-// for Node MCU 1.0 or WEMES D1 Mini 
- const int SDApin = 4; // D2
- const int SCLpin = 5; // D1
-
-// for ESP8266 ESP-01S
-// const int SDApin = 0; // D3
-// const int SCLpin = 2; // D4
 
 // for use in simulators driving LEDS instead of ctual appliance
 // # define switchOn  HIGH
@@ -36,9 +79,7 @@ Adafruit_SSD1306 display;  // Create display
 // for driving RELAYS in actual appliance
 # define switchOn  LOW
 # define switchOff HIGH
-# define switchInit 0b11111111
 
-byte writeByteBuffered = switchInit;
 
 
 unsigned long lastDisplayTime  = 0;            // the last time the OLED is written to
@@ -56,8 +97,8 @@ const String menu0[] = {
   "Fruit",            // 3
   "Spray",            // 4
   "Cold",             // 5
-  "Test",             // 6
-  "H/W Test"          // 7
+  "Wash Test",        // 6
+  "I/O Test"          // 7
  
   };      
 
@@ -153,10 +194,7 @@ int timeNow;
 int startTime;
 int endTime;
 
-int washTemp;
-int dryTemp;
-float WaterTemp; 
-int tempNow;
+float waterTemp, washTemp, dryTemp;
 // bool alarm = true;
 
 
@@ -166,18 +204,18 @@ byte i2cValue;
 
 // define IO pins on I2C expander
 # define buttonPin A0
-# define TemperaturePin D0
-# define lowWaterSensorPin D5
-# define highWaterSensorPin D6
-# define drainPump D3
-# define inlet D4
-# define washPump D7
-# define heater D8
+# define TemperaturePin 12 //D6
+# define lowWaterSensorPin 13 // D7
+# define highWaterSensorPin 14 // D5
+# define drainPump 16  // D0
+# define washPump 2 // D4
+# define inlet 0 // D3
+# define heater 15 // D8
 
 // define sensor input pins
 
 
-# define marginTemp  10
+#define marginTemp  1
 
 
 OneWire oneWire(TemperaturePin);
@@ -190,7 +228,7 @@ DallasTemperature TempSensor(&oneWire);
 # define standby    2
 # define progStart  3
 # define drain      4
-# define fill       5
+# define fillin     5
 # define wash       6
 # define dry        7
 # define complete   8
@@ -255,32 +293,30 @@ String binaryToString (int v, int num_places) {
 
 void  writeToLCD () {
 if (lcdline != prevline) {
-// if (lcdline[0] != prevline[0] or lcdline[1] != prevline[1] or lcdline[2] != prevline[2] or lcdline[3] != prevline[3])  { 
 
-   display.clearDisplay();  // Clear the buffer
-   display.setTextSize(2);
-
+   display.clear();  // Clear the buffer
 
    for (int l=0; l < 4; l++) {
-     display.setCursor(0, 16 * l);  // (x,y)
-     display.print (lcdline[l]);
+     display.drawString(0, 16 *l , lcdline[l]);
      prevline[l] = lcdline[l];   
-   }
+     }
+
    display.display();
    lastDisplayTime = millis();  // reset timer for screen saver
-   screenSaver = false;
- 
+   screenSaver = false; 
   }
 }
 
+
+
 // Look for a button press
-byte checkButtonPress(byte button) {
+byte checkButtonPress(byte buttonVal) {
    byte Bp = 0;
    byte rBp = 0;
 
   
 
-    if (button == 0)  {  Bp = menuRight;}  // 0 means button pressed (pulled low to ground)
+    if (buttonVal == 0)  {  Bp = menuRight;}  // 0 means button pressed (pulled low to ground)
   
    
      if (abs((millis() - lastDebounceTime) > debounceInterval)) 
@@ -305,8 +341,7 @@ byte checkButtonPress(byte button) {
               }
             }
           }
-       Serial.println (rBp);
-    
+  
        }
      }
     if (Bp != lastButtonState) 
@@ -429,7 +464,7 @@ void updateMenu () {
     switch (menuNo) { 
       case 0 :         
         lcdline[0]="Disk Washer";
-        lcdline[1]="Set Prog.";
+        lcdline[1]="Select Program";
         lcdline[2]=menu0[currentPos];
         lcdline[3]="";
       break;
@@ -448,7 +483,7 @@ void updateMenu () {
 }
 
 // configure parameters for the wash programs
-void washprogconfig (int inwaterLevel, int inNbrCycle, int inwashTime,  int inwashTemp, int indryTime, int indryTemp)
+void washprogconfig (int inwaterLevel, int inNbrCycle, int inwashTime,  float inwashTemp, int indryTime, float indryTemp)
 { 
 waterLevel = inwaterLevel;
 washTime = inwashTime;
@@ -478,26 +513,114 @@ void switchmode ( int induration, String newmsg)
 
 
 }
+
+bool inputTest () {
+    buttonValue = analogRead (buttonPin); 
+    TempSensor.requestTemperatures();// Send the command to get waterTemps
+    waterTemp=TempSensor.getTempCByIndex(0); //Stores eepromValue in Variable 
+    lcdline[1] = "L:" +  String (digitalRead(lowWaterSensorPin)) + " H:" + String (digitalRead(highWaterSensorPin)) + " T:" + String(waterTemp) + " " + String(buttonValue);
+    if (buttonValue == 0)  { 
+      Serial.print ("Test ended"); 
+      return true; 
+      } 
+    else return false;
+    }
+
+
  
+bool selfTest () {
+
+
+ 
+ // test the output
+ #define testms 1000
+    
+    lcdline[0] = "HW Test"; 
+    if (inputTest()) return true;
+    lcdline[2] = "Drian Pump";
+    lcdline[3] = " ON";
+    digitalWrite (drainPump,  switchOn);
+    for (int i=0; i<4; i++) Serial.println(lcdline[i]);  
+    writeToLCD();    
+    delay(testms);
+
+    if (inputTest()) return true;
+    lcdline[3] = " OFF";
+    digitalWrite (drainPump,  switchOff);
+    for (int i=0; i<4; i++) Serial.println(lcdline[i]);  
+    writeToLCD();    
+    delay(testms);
+    
+    if (inputTest()) return true;
+    lcdline[2] = "Water In";
+    lcdline[3] = " ON";
+    digitalWrite (inlet,  switchOn);
+    for (int i=0; i<4; i++) Serial.println(lcdline[i]);  
+    writeToLCD();    
+    delay(testms);
+
+    if (inputTest()) return true;
+    lcdline[3] = " OFF";
+    digitalWrite (inlet,  switchOff);
+    for (int i=0; i<4; i++) Serial.println(lcdline[i]);  
+    writeToLCD();    
+    delay(testms);
+
+    if (inputTest()) return true;
+    lcdline[2] = "Wash Pump";
+    lcdline[3] = " ON";
+    digitalWrite (washPump,  switchOn);
+    for (int i=0; i<4; i++) Serial.println(lcdline[i]);  
+    writeToLCD();    
+    delay(testms);
+    
+    if (inputTest()) return true;
+    lcdline[3] = " OFF";
+    digitalWrite (washPump,  switchOff);
+    for (int i=0; i<4; i++) Serial.println(lcdline[i]);  
+    writeToLCD();    
+    delay(testms);
+
+    if (inputTest()) return true;
+    lcdline[2] = "Heater";
+    lcdline[3] = " ON";
+    digitalWrite (heater,  switchOn);
+    for (int i=0; i<4; i++) Serial.println(lcdline[i]);  
+    writeToLCD();    
+    delay(testms);
+ 
+    if (inputTest()) return true;
+    lcdline[3] = " OFF";
+    digitalWrite (heater,  switchOff);
+    for (int i=0; i<4; i++) Serial.println(lcdline[i]);  
+    writeToLCD();    
+    delay(testms);
+
+    return false;
+}
+
 // the setup function runs once when you press reset or power the board
 void setup() {
    Serial.begin (74880);  // initialize serial port for debuging info
    delay (1000);
    Serial.println ("Disk Washer");
 
-   Wire.begin(SDApin,SCLpin);
-   display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  // Initialize display with the I2C address of 0x3C 
-  display.clearDisplay();  // Clear the buffer
-  display.setTextColor(WHITE);  // Set color of the text
-  display.setRotation(0);  // Set orientation. Goes from 0, 1, 2 or 3
-  display.setTextWrap(false);  // By default, long lines of text are set to automatically “wrap” back to the leftmost column.
-                               // To override this behavior (so text will run off the right side of the display - useful for
-                               // scrolling marquee effects), use setTextWrap(false). The normal wrapping behavior is restored
-                               // with setTextWrap(true).
-                               
-  display.dim(0);  //Set brightness (0 is maximun and 1 is a little dim)
-  display.setTextSize(1);
-  lcdline[0] = "Disk Washer v1.0";
+    display.init();
+  
+    display.clear();
+    display.flipScreenVertically();
+ 
+    display.setTextAlignment(TEXT_ALIGN_LEFT);
+
+    display.clear();
+
+    display.setFont(ArialMT_Plain_16);
+
+
+  lcdline[0] = "Disk Washer";
+  lcdline[1] = "";
+  lcdline[2] = "Billy Cheung";
+  lcdline[3] = "2020/07/19";
   
   writeToLCD();
   
@@ -507,6 +630,14 @@ void setup() {
   pinMode ( lowWaterSensorPin, INPUT_PULLUP);
   pinMode ( highWaterSensorPin, INPUT_PULLUP);
   Serial.println("Setup complete.");
+  pinMode (drainPump,OUTPUT);
+  pinMode (washPump,OUTPUT);
+  pinMode (inlet,OUTPUT);
+  pinMode (heater,OUTPUT);
+  digitalWrite (drainPump, switchOff);
+  digitalWrite (washPump, switchOff);
+  digitalWrite (inlet, switchOff);
+  digitalWrite (heater, switchOff);
 
   TempSensor.begin();
 
@@ -518,23 +649,41 @@ void setup() {
 // the loop function runs over and over again forever
 void loop() {
   
-buttonValue = analogRead (buttonPin);
+
 // check waterLevel 
 if (! digitalRead(highWaterSensorPin))  waterLevel = high;
 else if (! digitalRead(lowWaterSensorPin))  waterLevel = low;
 else waterLevel = empty;
- 
+
+buttonValue = analogRead (buttonPin); 
 pressedButton = checkButtonPress(buttonValue);
+
 if (pressedButton != 0) updateMenu();
 
 if (currProg==hwTest) { 
+   if (selfTest()) {
+//   button pressed to stop i/o test. Shutdown all relays
+     digitalWrite (drainPump,  switchOff);
+     digitalWrite (washPump,  switchOff);
+     digitalWrite (inlet,  switchOff);
+     digitalWrite (heater,  switchOff);
+ // go back to main menu
+     switchmode (0, "Program Completed");  
+     pressedButton = 0;
+     currentPos = 1;
+     updateMenu();
+     currMode = progSelect;
+     menuNo = 0;
+     prevProg =1;
+   }
    return;
 }
+
 
   // screen saver to avoid burnout of OLED.
   if (abs(lastDisplayTime - millis()) > ScreenSaverInterval) {
     if (! screenSaver) {
-      display.clearDisplay();
+      display.clear();
       display.display();
       lastDisplayTime = millis();
       screenSaver = true;
@@ -551,8 +700,8 @@ if (currProg==hwTest) {
 
 // check current Temperature;
  TempSensor.requestTemperatures();// Send the command to get waterTemps
- WaterTemp=TempSensor.getTempCByIndex(0); //Stores eepromValue in Variable
- tempNow = int(WaterTemp);
+ waterTemp=TempSensor.getTempCByIndex(0); //Stores eepromValue in Variable
+
  
 // record the time
   timeNow = millis() / timingfactor;
@@ -570,9 +719,9 @@ if (currProg==hwTest) {
   else  {
     // calculate the remaining time of the current cycle
     remainProgTime += (endTime - timeNow); 
-    // add the time of the remaining modes in this cycle (fill, wash, drian)
+    // add the time of the remaining modes in this cycle (fillin, wash, drian)
     switch (currMode) {
-      case fill : remainProgTime += (washTime + drainTime);
+      case fillin : remainProgTime += (washTime + drainTime);
       break;
       case wash : remainProgTime += drainTime;
       break;
@@ -598,7 +747,7 @@ if (currProg==hwTest) {
         lcdline[2] ="Drian Err";
         lcdline[3]= "or Clog"; 
      }
-     else if (errMode == fill) {
+     else if (errMode == fillin) {
         lcdline[2] ="Fill Err";
         lcdline[3]= "Check Hose"; 
      }
@@ -611,8 +760,8 @@ if (currProg==hwTest) {
   else {
     lcdline[0] = progName[currProg] + " " + String (remainProgTime);
     lcdline[1] =  "C"  + String (nbrCycle - currCycle) + " " + modename[currMode];
-    lcdline[2] = "W" + String(waterLevel) + " T" + String(tempNow) + "C";
-//  lcdline[2] = "Temp " + String(tempNow) + " C";
+    lcdline[2] = "W" + String(waterLevel) + " T" + String(waterTemp) + "C";
+//  lcdline[2] = "Temp " + String(waterTemp) + " C";
     lcdline[3] = "Time "  + String (endTime - timeNow) + " m";
     }
   writeToLCD ();
@@ -645,7 +794,7 @@ if (currProg==hwTest) {
     else if (waterLevel == empty) { // drain completed 
       currCycle ++;
       if (currCycle <= nbrCycle) 
-         currMode = fill;
+         currMode = fillin;
       else 
       if (dryTime > 0)
         currMode = dry;
@@ -660,7 +809,7 @@ if (currProg==hwTest) {
     break;
 
     
-    case fill:
+    case fillin:
     if (currMode != prevMode) {
       switchmode (fillTime, "fill");    
       digitalWrite (inlet, switchOn);  // open the inlet to let water in from the hose.
@@ -691,9 +840,9 @@ if (currProg==hwTest) {
 
     if (washTemp > 0)
     { // turn off heater if above max. Temp.
-      if ( tempNow  >  (washTemp + marginTemp) ) digitalWrite (heater, switchOff);
+      if ( waterTemp  >  (washTemp + marginTemp) ) digitalWrite (heater, switchOff);
       // turn on heater if below max. Temp
-      else if ( tempNow  <  (washTemp - marginTemp) ) digitalWrite (heater, switchOn);
+      else if ( waterTemp  <  (washTemp - marginTemp) ) digitalWrite (heater, switchOn);
     }
 
 
@@ -709,9 +858,9 @@ if (currProg==hwTest) {
         currMode = complete;
     if (dryTemp > 0)
     { // turn off heater if above max. Temp.
-      if ( tempNow  >  (dryTemp + marginTemp) ) digitalWrite (heater, switchOff);
+      if ( waterTemp  >  (dryTemp + marginTemp) ) digitalWrite (heater, switchOff);
       // turn on heater if below max. Temp
-      else if ( tempNow  <  (dryTemp - marginTemp) ) digitalWrite (heater, switchOn);
+      else if ( waterTemp  <  (dryTemp - marginTemp) ) digitalWrite (heater, switchOn);
     }
     break;
    
