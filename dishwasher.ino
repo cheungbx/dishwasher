@@ -47,7 +47,7 @@
  
  Input:   
           1. buttonPin - A0 - connect th eother end of the button to 3.3V 
-          2. TemperaturePin 12 //D6 - connects to the water temperature sensor
+          2. TemperaturePin 12 //D6 - connects to the water temperature sensor DS18B20 , one wire temperature sensor
           3. lowWaterSensorPin 13 // D7 - connects to a wire imersed into water to mark the low water level. Connect another wire from the bottom of the tank to Ground.
           4. highWaterSensorPin 14 // D5 - connects to a wire imersed into water to mark the low water level. Connect another wire from the bottom of the tank to Ground.
 
@@ -217,7 +217,7 @@ byte i2cValue;
 
 #define marginTemp  1
 
-
+// DS18B20 - one wire temperature sensor
 OneWire oneWire(TemperaturePin);
 DallasTemperature TempSensor(&oneWire);
 
@@ -510,8 +510,11 @@ void switchmode ( int induration, String newmsg)
     Serial.print (timeNow);
     outmsg = ": " + newmsg + outmsg;
     Serial.println (outmsg);
-
-
+//   switch off  all output
+     digitalWrite (drainPump,  switchOff);
+     digitalWrite (washPump,  switchOff);
+     digitalWrite (inlet,  switchOff);
+     digitalWrite (heater,  switchOff);
 }
 
 bool inputTest () {
@@ -662,11 +665,8 @@ if (pressedButton != 0) updateMenu();
 
 if (currProg==hwTest) { 
    if (selfTest()) {
-//   button pressed to stop i/o test. Shutdown all relays
-     digitalWrite (drainPump,  switchOff);
-     digitalWrite (washPump,  switchOff);
-     digitalWrite (inlet,  switchOff);
-     digitalWrite (heater,  switchOff);
+//   button pressed to stop i/o test
+
  // go back to main menu
      switchmode (0, "Program Completed");  
      pressedButton = 0;
