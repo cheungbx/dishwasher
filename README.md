@@ -5,7 +5,7 @@
  Author: Billy Cheung
  
  
-[![Picture](https://github.com/cheungbx/esp8266_arduboy2/blob/master/ESP8266%20Arduboy%20Video.jpg)](https://youtu.be/CinJb7gifH8)
+[![Picture](https://github.com/cheungbx/diskwasher/blob/master/Diskwasher.jpg)](https://youtu.be/CinJb7gifH8)
 
  
  
