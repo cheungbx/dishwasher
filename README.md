@@ -5,6 +5,9 @@
  Author: Billy Cheung
  
  
+[![Picture](https://github.com/cheungbx/esp8266_arduboy2/blob/master/ESP8266%20Arduboy%20Video.jpg)](https://youtu.be/CinJb7gifH8)
+
+ 
  
  Function:  This is a  disk washer controller program.
             This utilize a ESP8266 WeMos D1 mini 
