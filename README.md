@@ -44,12 +44,12 @@
           heater GPIO15 // D8 - contorl the under water heater that heats up the water to the required temperature. The program checks the water temperature sensor to turn the heater on or off.
           SSD 1306 - (SCL/GPIO 5/D1,  SDA/GPIO 4/D2) - display messages and menu
           
+ Input:   Following are the input pins
  
- Input:   
-          1. buttonPin - A0 - connect th eother end of the button to 3.3V 
-          2. TemperaturePin 12 //D6 - connects to the water temperature sensor
-          3. lowWaterSensorPin 13 // D7 - connects to a wire imersed into water to mark the low water level. Connect another wire from the bottom of the tank to Ground.
-          4. highWaterSensorPin 14 // D5 - connects to a wire imersed into water to mark the low water level. Connect another wire from the bottom of the tank to Ground.
+          buttonPin - A0 - connect th eother end of the button to 3.3V 
+          TemperaturePin 12 //D6 - connects to the water temperature sensor
+          lowWaterSensorPin 13 // D7 - connects to a wire imersed into water to mark the low water level. Connect another wire from the bottom of the tank to Ground.
+          highWaterSensorPin 14 // D5 - connects to a wire imersed into water to mark the low water level. Connect another wire from the bottom of the tank to Ground.
 
  
 */
