@@ -1,6 +1,6 @@
-# diskwasher
+# dishwasher
 /*
- disk washer v2.0
+ dishwasher v2.0
  2020 07 19 
  Author: Billy Cheung
  
@@ -9,7 +9,7 @@
 
  
  
- Function:  This is a  disk washer controller program.
+ Function:  This is a  dishwasher controller program.
             This utilize a ESP8266 WeMos D1 mini 
             an SSD1306 I2C OLED for display,  
             a water temperature sensor  to control whether to turn on the heater to haat up the water to the required temperature for washing.
