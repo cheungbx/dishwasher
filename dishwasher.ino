@@ -1,4 +1,4 @@
-
+          
 /*
  disk washer v2.0
  2020 07 19 
@@ -38,10 +38,10 @@
     
  Output:  The output is connected to a 5V 4 way relay modul to drive the 
 
-          drainPump GPIO16  // D0 - to drain exhuast water out of the washer. The program reads the low water level sensor and stop draining when water level falls below the low water level mark.
-          washPump GPIO2 // D4 - control the strong water pump (80 watt or higher) that drives a garden sprayer to produce a rotating all angel spray to wash darts off the surfaces of dishes.
-          inlet GPIO0 // D3 - control the water inlet to let water in from the hose to fill water up to the required water level. The program checks the water sensor to close the inlet when the high water level mark is eached.
-          heater GPIO15 // D8 - contorl the under water heater that heats up the water to the required temperature. The program checks the water temperature sensor to turn the heater on or off.
+          IN1 - drainPump GPIO16  // D0 - to drain exhuast water out of the washer. The program reads the low water level sensor and stop draining when water level falls below the low water level mark.
+          IN2 - inlet GPIO0 // D3 - control the water inlet to let water in from the hose to fill water up to the required water level. The program checks the water sensor to close the inlet when the high water level mark is eached.
+          IN3 - washPump GPIO2 // D4 - control the strong water pump (80 watt or higher) that drives a garden sprayer to produce a rotating all angel spray to wash darts off the surfaces of dishes.
+          IN4 - heater GPIO15 // D8 - contorl the under water heater that heats up the water to the required temperature. The program checks the water temperature sensor to turn the heater on or off.
           SSD 1306 - (SCL/GPIO 5/D1,  SDA/GPIO 4/D2) - display messages and menu
           
  
@@ -203,14 +203,18 @@ byte buttonValue;
 byte i2cValue;
 
 // define IO pins on I2C expander
+
+// input pin
 # define buttonPin A0
-# define TemperaturePin 12 //D6
-# define lowWaterSensorPin 13 // D7
+# define TemperaturePin 12     // D6
+# define lowWaterSensorPin 13  // D7
 # define highWaterSensorPin 14 // D5
-# define drainPump 16  // D0
-# define washPump 2 // D4
-# define inlet 0 // D3
-# define heater 15 // D8
+
+// output pin
+# define drainPump 16  // D0 - connect to IN1 of Relay module
+# define inlet 0       // D3 - connect to IN2 of Relay module
+# define washPump 2    // D4 - connect to IN3 of Relay module
+# define heater 15     // D8 - connect to IN4 of Relay module
 
 // define sensor input pins
 
