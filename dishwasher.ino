@@ -39,9 +39,9 @@
  Output:  The output is connected to a 5V 4 way relay modul to drive the 
 
           IN1 - drainPump GPIO16  // D0 - to drain exhuast water out of the washer. The program reads the low water level sensor and stop draining when water level falls below the low water level mark.
-          IN2 - inlet GPIO0 // D3 - control the water inlet to let water in from the hose to fill water up to the required water level. The program checks the water sensor to close the inlet when the high water level mark is eached.
-          IN3 - washPump GPIO2 // D4 - control the strong water pump (80 watt or higher) that drives a garden sprayer to produce a rotating all angel spray to wash darts off the surfaces of dishes.
-          IN4 - heater GPIO15 // D8 - contorl the under water heater that heats up the water to the required temperature. The program checks the water temperature sensor to turn the heater on or off.
+          IN2 - inlet GPIO 0 // D3 - control the water inlet to let water in from the hose to fill water up to the required water level. The program checks the water sensor to close the inlet when the high water level mark is eached.
+          IN3 - washPump GPIO 2 // D4 - control the strong water pump (80 watt or higher) that drives a garden sprayer to produce a rotating all angel spray to wash darts off the surfaces of dishes.
+          IN4 - heater GPIO 15 // D8 - contorl the under water heater that heats up the water to the required temperature. The program checks the water temperature sensor to turn the heater on or off.
           SSD 1306 - (SCL/GPIO 5/D1,  SDA/GPIO 4/D2) - display messages and menu
           
  
@@ -173,6 +173,7 @@ String prevline[]= { "","","",""};
 # define low   1
 # define empty 0
 int waterLevel = low;
+bool heaterStatus = false;
 
 
 
@@ -180,12 +181,13 @@ int waterLevel = low;
 int nbrCycle;
 int currCycle; 
 
-// time in minutes
-#define timingfactor 10000  // divide the machine milli seconds by this number to count against the wash cycle times 
-                            // default is 60000 so the wash program time is set in minute
-                            // during testing set it to 1000 (1s) or 10000 (10 sec) to make the wash cycle runs faster.
-#define fillTime 3     // est. time to fill the tank up to high water level
-#define drainTime  3   // est. time to drain all water from the thank
+// divide the machine milli seconds by this number to count against the wash cycle times 
+// default is 60000 so the wash program time is counted in minutes
+// Set to 10000 to count in seconds for accelerated debugging
+// during testing set it to 1000 (1s) or 10000 (10 sec) to make the wash cycle runs faster.
+unsigned long timingFactor = 60000;  
+unsigned long fillTime = 10;     // No. of minutes to fill the tank up to high water level before reporting an error
+unsigned long drainTime = 10;   // No. of minutes to drain all water from the tank before reporting an error
 
 int remainProgTime;
 int washTime;
@@ -394,15 +396,15 @@ void updateMenu () {
                    switch (currProg) {
     
                       // set up  parameters for selecgted wash program:  
-                      // water level,  no. of wash cycles, wash time per cycle, wash Temperature , dry time, dry Temperature
-                      case standProg:washprogconfig (high,  3, 15, 70, 15, 70); break;
-                      case longProg: washprogconfig (high,  4, 20, 70, 20, 70); break;
-                      case fastProg: washprogconfig (high,  2, 15, 70, 10, 70); break;
-                      case fruitProg:washprogconfig (high,  1, 5,   0,  0,  0); break;
-                      case sprayProg:washprogconfig (high,  1, 10, 70, 10, 70); break;
-                      case coldProg: washprogconfig (high,  2, 15,  0, 10,  0); break;
-                      case testProg: washprogconfig (high,  1,  1,  1,  1,  1); break;
-                    }   
+                      //                            timing Factor, water level,  no. of wash cycles, wash time per cycle, wash Temperature , dry time, dry Temperature
+                      case standProg:washprogconfig (60000,           high,         3,                  15,                   70,                    15,  70); break; // count time in minutes
+                      case longProg: washprogconfig (60000,           high,         4,                  20,                   70,                    20,  70); break;
+                      case fastProg: washprogconfig (60000,           high,         2,                  15,                   70,                    10,  70); break;
+                      case fruitProg:washprogconfig (60000,           high,         1,                   5,                    0,                     0,   0); break;
+                      case sprayProg:washprogconfig (60000,           high,         1,                  10,                   70,                    10,  70); break;
+                      case coldProg: washprogconfig (60000,           high,         2,                  15,                    0,                    10,   0); break;
+                      case testProg: washprogconfig (1000,            high,         3,                  15,                   70,                    15,  70); break;  // count time in 1 seconds
+                    }    
                   menuNo = 1; // go down to menu 1
                   currentPos = 0;       
                 break;       
@@ -487,8 +489,9 @@ void updateMenu () {
 }
 
 // configure parameters for the wash programs
-void washprogconfig (int inwaterLevel, int inNbrCycle, int inwashTime,  float inwashTemp, int indryTime, float indryTemp)
+void washprogconfig (long unsigned tFactor, int inwaterLevel, int inNbrCycle, int inwashTime,  float inwashTemp, int indryTime, float indryTemp)
 { 
+timingFactor = tFactor; // 60000 to count time per minute, 1000 to count time per second for debugging purposes.
 waterLevel = inwaterLevel;
 washTime = inwashTime;
 nbrCycle = inNbrCycle + 1 ;  // first cycle is only to drain o/s water, hence need to add 1 cycle.
@@ -519,6 +522,7 @@ void switchmode ( int induration, String newmsg)
      digitalWrite (washPump,  switchOff);
      digitalWrite (inlet,  switchOff);
      digitalWrite (heater,  switchOff);
+     heaterStatus = false;
 }
 
 bool inputTest () {
@@ -544,7 +548,7 @@ bool selfTest () {
     
     lcdline[0] = "HW Test"; 
     if (inputTest()) return true;
-    lcdline[2] = "Drian Pump";
+    lcdline[2] = "Drain Pump";
     lcdline[3] = " ON";
     digitalWrite (drainPump,  switchOn);
     for (int i=0; i<4; i++) Serial.println(lcdline[i]);  
@@ -708,7 +712,7 @@ if (currProg==hwTest) {
 
  
 // record the time
-  timeNow = millis() / timingfactor;
+  timeNow = millis() / timingFactor;
 
  
   // calculate remaining progtime
@@ -723,7 +727,7 @@ if (currProg==hwTest) {
   else  {
     // calculate the remaining time of the current cycle
     remainProgTime += (endTime - timeNow); 
-    // add the time of the remaining modes in this cycle (fillin, wash, drian)
+    // add the time of the remaining modes in this cycle (fillin, wash, Drain)
     switch (currMode) {
       case fillin : remainProgTime += (washTime + drainTime);
       break;
@@ -748,7 +752,7 @@ if (currProg==hwTest) {
      lcdline[0] = progName[currProg] + " " + String (remainProgTime);
      lcdline[1] =  "C"  + String (nbrCycle - currCycle);
      if (errMode == drain) {
-        lcdline[2] ="Drian Err";
+        lcdline[2] ="Drain Err";
         lcdline[3]= "or Clog"; 
      }
      else if (errMode == fillin) {
@@ -764,10 +768,14 @@ if (currProg==hwTest) {
   else {
     lcdline[0] = progName[currProg] + " " + String (remainProgTime);
     lcdline[1] =  "C"  + String (nbrCycle - currCycle) + " " + modename[currMode];
-    lcdline[2] = "W" + String(waterLevel) + " T" + String(waterTemp) + "C";
-//  lcdline[2] = "Temp " + String(waterTemp) + " C";
-    lcdline[3] = "Time "  + String (endTime - timeNow) + " m";
+    lcdline[2] = "W" + String(waterLevel) + " T" + String(waterTemp) + "C H" + String(heaterStatus) ;
+    lcdline[3] = "Time "  + String (endTime - timeNow);
+    if (timingFactor == 1000) 
+      lcdline[3] += " s"; 
+    else 
+      lcdline[3] += " m";
     }
+ 
   writeToLCD ();
 
 
@@ -791,11 +799,12 @@ if (currProg==hwTest) {
     case drain:
     if (currMode != prevMode) {
       switchmode (drainTime, "Drain");    
-      // Turn on relays to start the drian pump;
+      // Turn on relays to start the Drain pump;
       delay (2000);  // delay 2 seconds to let the drain door open;
       digitalWrite (drainPump, switchOn); 
     }
-    else if (waterLevel == empty) { // drain completed 
+    else if (waterLevel == empty or (currProg == testProg and timeNow >= endTime)) 
+      { // drain completed 
       currCycle ++;
       if (currCycle <= nbrCycle) 
          currMode = fillin;
@@ -805,8 +814,8 @@ if (currProg==hwTest) {
       else
         currMode = complete;
       }
-    else if (timeNow >= endTime) {         
-      Serial.println (" Water drian time exceeded. Water drain or sensor problem, pls check");
+    else if (timeNow >= endTime) {          
+      Serial.println (" Water Drain time exceeded. Water drain or sensor problem, pls check");
       errMode = currMode;
       currMode =errPause;  
     }  
@@ -818,14 +827,14 @@ if (currProg==hwTest) {
       switchmode (fillTime, "fill");    
       digitalWrite (inlet, switchOn);  // open the inlet to let water in from the hose.
      }
-    else if (waterLevel == high)  
+    else if (waterLevel == high or (currProg == testProg and timeNow >= endTime))  
       currMode = wash;
     else if (timeNow >= endTime) {
-       Serial.println (" Water fill time exceeded. Water fill problem, pls check");
-       errMode = currMode;
-       currMode = errPause;  // Error 
-//     currMode = wash;
-     }  
+      Serial.println (" Water fill time exceeded. Water fill problem, pls check");
+      errMode = currMode;
+      currMode = errPause;  // Error 
+    }
+     
   
     break;
      
@@ -844,27 +853,39 @@ if (currProg==hwTest) {
 
     if (washTemp > 0)
     { // turn off heater if above max. Temp.
-      if ( waterTemp  >  (washTemp + marginTemp) ) digitalWrite (heater, switchOff);
+      if ( waterTemp  >  (washTemp + marginTemp) ) {
+        digitalWrite (heater, switchOff);
+        heaterStatus = false;
+        }
       // turn on heater if below max. Temp
-      else if ( waterTemp  <  (washTemp - marginTemp) ) digitalWrite (heater, switchOn);
+      else if ( waterTemp  <  (washTemp - marginTemp) ) {
+        digitalWrite (heater, switchOn);
+        heaterStatus = true;
+        }
     }
 
 
     break;
     
    case dry:
-    if (currMode != prevMode)
-    {
+    if (currMode != prevMode) {
       switchmode (dryTime, "Dry");     
-      digitalWrite (heater, switchOn);
     }
     else if (timeNow >= endTime) 
         currMode = complete;
+
     if (dryTemp > 0)
     { // turn off heater if above max. Temp.
-      if ( waterTemp  >  (dryTemp + marginTemp) ) digitalWrite (heater, switchOff);
+      if ( waterTemp  >  (dryTemp + marginTemp) ) {
+      digitalWrite (heater, switchOff);
+      heaterStatus = false;
+      }
       // turn on heater if below max. Temp
-      else if ( waterTemp  <  (dryTemp - marginTemp) ) digitalWrite (heater, switchOn);
+      else if ( waterTemp  <  (dryTemp - marginTemp) ) {
+        digitalWrite (heater, switchOn);
+        heaterStatus = true;
+        }
+ 
     }
     break;
    
