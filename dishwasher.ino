@@ -46,7 +46,7 @@
           
  
  Input:   
-          1. buttonPin - A0 - connect th eother end of the button to 3.3V 
+          1. buttonPin - 3 / RX  - connect th eother end of the button to GND 
           2. TemperaturePin 12 //D6 - connects to the water temperature sensor DS18B20 , one wire temperature sensor
           3. lowWaterSensorPin 13 // D7 - connects to a wire imersed into water to mark the low water level. Connect another wire from the bottom of the tank to Ground.
           4. highWaterSensorPin 14 // D5 - connects to a wire imersed into water to mark the low water level. Connect another wire from the bottom of the tank to Ground.
@@ -207,7 +207,7 @@ byte i2cValue;
 // define IO pins on I2C expander
 
 // input pin
-# define buttonPin A0
+# define buttonPin 3 // RX
 # define TemperaturePin 12     // D6
 # define lowWaterSensorPin 13  // D7
 # define highWaterSensorPin 14 // D5
@@ -397,13 +397,13 @@ void updateMenu () {
     
                       // set up  parameters for selecgted wash program:  
                       //                            timing Factor, water level,  no. of wash cycles, wash time per cycle, wash Temperature , dry time, dry Temperature
-                      case standProg:washprogconfig (60000,           high,         3,                  15,                   70,                    15,  70); break; // count time in minutes
-                      case longProg: washprogconfig (60000,           high,         4,                  20,                   70,                    20,  70); break;
-                      case fastProg: washprogconfig (60000,           high,         2,                  15,                   70,                    10,  70); break;
-                      case fruitProg:washprogconfig (60000,           high,         1,                   5,                    0,                     0,   0); break;
-                      case sprayProg:washprogconfig (60000,           high,         1,                  10,                   70,                    10,  70); break;
-                      case coldProg: washprogconfig (60000,           high,         2,                  15,                    0,                    10,   0); break;
-                      case testProg: washprogconfig (1000,            high,         3,                  15,                   70,                    15,  70); break;  // count time in 1 seconds
+                      case standProg:washprogconfig (60000,           high,         3,                  15,                   60,             0,  0); break; // count time in minutes
+                      case longProg: washprogconfig (60000,           high,         4,                  20,                   60,             0,  0); break;
+                      case fastProg: washprogconfig (60000,           high,         2,                  15,                   60,             0,  0); break;
+                      case fruitProg:washprogconfig (60000,           high,         1,                   5,                    0,             0,  0); break;
+                      case sprayProg:washprogconfig (60000,           high,         1,                  10,                   60,             0,  0); break;
+                      case coldProg: washprogconfig (60000,           high,         2,                  15,                    0,             0,  0); break;
+                      case testProg: washprogconfig (1000,            high,         3,                  15,                   60,             0,  0); break;  // count time in 1 seconds
                     }    
                   menuNo = 1; // go down to menu 1
                   currentPos = 0;       
@@ -522,13 +522,16 @@ void switchmode ( int induration, String newmsg)
      digitalWrite (washPump,  switchOff);
      digitalWrite (inlet,  switchOff);
      digitalWrite (heater,  switchOff);
+
      heaterStatus = false;
 }
 
 bool inputTest () {
-    buttonValue = analogRead (buttonPin); 
+    buttonValue = digitalRead (buttonPin); 
     TempSensor.requestTemperatures();// Send the command to get waterTemps
-    waterTemp=TempSensor.getTempCByIndex(0); //Stores eepromValue in Variable 
+    waterTemp=TempSensor.getTempCByIndex(0); 
+    if (waterTemp == -127) waterTemp = 99.99; // sensor error
+     
     lcdline[1] = "L:" +  String (digitalRead(lowWaterSensorPin)) + " H:" + String (digitalRead(highWaterSensorPin)) + " T:" + String(waterTemp) + " " + String(buttonValue);
     if (buttonValue == 0)  { 
       Serial.print ("Test ended"); 
@@ -637,6 +640,7 @@ void setup() {
   
   delay(3000);
 
+  pinMode ( buttonPin, INPUT_PULLUP);
   pinMode ( TemperaturePin, INPUT_PULLUP);
   pinMode ( lowWaterSensorPin, INPUT_PULLUP);
   pinMode ( highWaterSensorPin, INPUT_PULLUP);
@@ -645,10 +649,12 @@ void setup() {
   pinMode (washPump,OUTPUT);
   pinMode (inlet,OUTPUT);
   pinMode (heater,OUTPUT);
+
   digitalWrite (drainPump, switchOff);
   digitalWrite (washPump, switchOff);
   digitalWrite (inlet, switchOff);
   digitalWrite (heater, switchOff);
+
 
   TempSensor.begin();
 
@@ -666,7 +672,7 @@ if (! digitalRead(highWaterSensorPin))  waterLevel = high;
 else if (! digitalRead(lowWaterSensorPin))  waterLevel = low;
 else waterLevel = empty;
 
-buttonValue = analogRead (buttonPin); 
+buttonValue = digitalRead (buttonPin); 
 pressedButton = checkButtonPress(buttonValue);
 
 if (pressedButton != 0) updateMenu();
@@ -877,13 +883,13 @@ if (currProg==hwTest) {
     if (dryTemp > 0)
     { // turn off heater if above max. Temp.
       if ( waterTemp  >  (dryTemp + marginTemp) ) {
+
       digitalWrite (heater, switchOff);
-      heaterStatus = false;
       }
       // turn on heater if below max. Temp
       else if ( waterTemp  <  (dryTemp - marginTemp) ) {
+
         digitalWrite (heater, switchOn);
-        heaterStatus = true;
         }
  
     }
