@@ -50,7 +50,8 @@
           
  Input:   Following are the input pins
  
-          buttonPin - A0 - connect th eother end of the button to 3.3V 
+          buttonPin - 3/ RX - connect the other end of the button to  GND
+          Reset - Rest - connect the other end of the button to GND
           TemperaturePin 12 //D6 - connects to the water temperature sensor
           lowWaterSensorPin 13 // D7 - connects to a wire imersed into water to mark the low water level. Connect another wire from the bottom of the tank to Ground.
           highWaterSensorPin 14 // D5 - connects to a wire imersed into water to mark the low water level. Connect another wire from the bottom of the tank to Ground.
